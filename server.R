@@ -460,8 +460,8 @@ shinyServer(function(input, output, session) {
   }) 
   
   output$testPlan <- renderPlot({
-    if (input$select ==2){
-      if (!is.null(input$daysPlan)){
+    if (input$select ==2 & !is.null(input$trafficPlan)){
+      if (!is.null(input$daysPlan ) & input$trafficPlan>0){
         power_df <-   expand.grid(days= seq(1,input$daysPlan, 1),
                               e_prop= input$propsPlan,
                               true_uplift= seq(input$minUpPlan[1]/100, input$minUpPlan[2]/100, length.out = 5)) %>%
@@ -495,8 +495,9 @@ shinyServer(function(input, output, session) {
         colnames(power_df)[1] = 'True uplift'
         colnames(power_df)[2] = 'Min days'
         colnames(power_df)[3] = 'Min uniques'
-        return (power_df)
-        
+        if (nrow(power_df)>0){
+          return (power_df)
+        }
       }
     }
   })
