@@ -66,11 +66,11 @@ add_stats <- function(eng_u, con_u, eng_suc, con_suc, null_hypoth, tails, conf_l
   
   split_test_df <- data.frame(engaged_uniques = eng_u,
                              control_uniques = con_u,
-                             engaged_sucesses = eng_suc,
-                             control_sucesses = con_suc)%>%
-    mutate(Confidence = sig_calc(engaged_uniques, control_uniques, engaged_sucesses, control_sucesses, null_hypoth, tails),
-           Uplift = uplift(engaged_uniques, control_uniques, engaged_sucesses, control_sucesses))%>%
-    do(cbind(.,conf_interval_calc(.$engaged_uniques, .$control_uniques, .$engaged_sucesses, .$control_sucesses, conf_level)))
+                             engaged_successes = eng_suc,
+                             control_successes = con_suc)%>%
+    mutate(Confidence = sig_calc(engaged_uniques, control_uniques, engaged_successes, control_successes, null_hypoth, tails),
+           Uplift = uplift(engaged_uniques, control_uniques, engaged_successes, control_successes))%>%
+    do(cbind(.,conf_interval_calc(.$engaged_uniques, .$control_uniques, .$engaged_successes, .$control_successes, conf_level)))
     
   return(split_test_df)
 }
@@ -78,9 +78,9 @@ add_stats <- function(eng_u, con_u, eng_suc, con_suc, null_hypoth, tails, conf_l
 add_stats_csv <- function(df, null_hypoth, tails, conf_level) {
   
     split_test_df<-df%>%
-    mutate(Confidence = sig_calc(treatment_uniques, control_uniques, treatment_sucesses, control_sucesses, null_hypoth, tails),
-           Uplift = uplift(treatment_uniques, control_uniques, treatment_sucesses, control_sucesses))%>%
-    do(cbind(.,conf_interval_calc(.$treatment_uniques, .$control_uniques, .$treatment_sucesses, .$control_sucesses, conf_level)))
+    mutate(Confidence = sig_calc(treatment_uniques, control_uniques, treatment_successes, control_successes, null_hypoth, tails),
+           Uplift = uplift(treatment_uniques, control_uniques, treatment_successes, control_successes))%>%
+    do(cbind(.,conf_interval_calc(.$treatment_uniques, .$control_uniques, .$treatment_successes, .$control_successes, conf_level)))
   
   return(split_test_df)
 }
@@ -189,11 +189,11 @@ shinyServer(function(input, output, session) {
               numericInput("cont_u", 
                    label = ("Control uniques*"),
                    value = 0),
-              numericInput("treat_sucess", 
-                 label = ("Treatment sucesses*"),
+              numericInput("treat_success", 
+                 label = ("Treatment successes*"),
                  value = 0),
-              numericInput("cont_sucess", 
-                 label = ("Control sucesses*"),
+              numericInput("cont_success", 
+                 label = ("Control successes*"),
                  value = 0))
       }
 
@@ -210,7 +210,7 @@ shinyServer(function(input, output, session) {
   output$testCsvText <- renderUI({
     if (input$select == 1 & !is.null(input$csv)){
       if (input$csv == 2 ){
-        p('CSV must have the columns treatment_uniques, control_uniques, treatment_sucesses, control_sucesses and be cumulative')
+        p('CSV must have the columns treatment_uniques, control_uniques, treatment_successes, control_successes and be cumulative')
       }
     }
   })
@@ -340,10 +340,10 @@ shinyServer(function(input, output, session) {
   
   output$table <- renderTable({
     if (input$select == 1){
-      if (!is.null(input$cont_sucess)){
+      if (!is.null(input$cont_success)){
         if(input$csv == 1){
-          df <- add_stats(input$treat_u, input$cont_u,input$treat_sucess,
-                        input$cont_sucess,input$null_hypoth,input$tails,input$conf) %>% 
+          df <- add_stats(input$treat_u, input$cont_u,input$treat_success,
+                        input$cont_success,input$null_hypoth,input$tails,input$conf) %>% 
           select(Uplift, Confidence, lower_bound,upper_bound)
           
           names(df)[3] <- 'Lower bound'
@@ -358,7 +358,9 @@ shinyServer(function(input, output, session) {
   output$tableCsv <- renderTable({
     if (input$select == 1){
         if (!is.null(input$datafile) && input$csv == 2){
-          df <- read.csv(input$datafile$datapath) %>% 
+          df <- read.csv(input$datafile$datapath)
+          if (length(setdiff(c('treatment_uniques', 'control_uniques', 'treatment_successes', 'control_successes'), colnames(df))) == 0){
+          df <-df %>% 
             tail(1) %>% 
             add_stats_csv(input$null_hypoth,input$tails,input$conf) %>% 
             select(Uplift, Confidence, lower_bound,upper_bound)
@@ -367,6 +369,9 @@ shinyServer(function(input, output, session) {
           
 
           return(df)
+          }else{
+            'csv does not have correct column headings (treatment_uniques, control_uniques, treatment_successes, control_successes)'
+          }
         }
     }
   })
@@ -374,15 +379,19 @@ shinyServer(function(input, output, session) {
   output$plotCsv <- renderPlot({
     if (input$select == 1){
       if (!is.null(input$datafile)){
-        df <- read.csv(input$datafile$datapath) %>% 
-          mutate(Uplift = uplift(treatment_uniques, control_uniques, treatment_sucesses, control_sucesses))%>% 
+        
+        df <- read.csv(input$datafile$datapath) 
+
+        if (length(setdiff(c('treatment_uniques', 'control_uniques', 'treatment_successes', 'control_successes'), colnames(df))) == 0) {
+          df<-df%>% 
+          mutate(Uplift = uplift(treatment_uniques, control_uniques, treatment_successes, control_successes))%>% 
           mutate(row = seq_along(treatment_uniques)) %>%
           mutate(pass_u =  pass_mark(input$sig/100, input$null_hypoth/100, input$tails, control_uniques,
-                                         control_sucesses, treatment_uniques, treatment_sucesses))
+                                         control_successes, treatment_uniques, treatment_successes))
        
          if (input$tails == 2) {
           df<- df %>% mutate( pass_l = pass_mark((2-input$sig/100), input$null_hypoth/100, input$tails,  control_uniques,
-                                          control_sucesses, treatment_uniques, treatment_sucesses))
+                                          control_successes, treatment_uniques, treatment_successes))
         }
         
         df<-df %>% 
@@ -392,6 +401,8 @@ shinyServer(function(input, output, session) {
 
          ggplot(df, aes(x=row, y = value, group = variable, color = color)) + geom_line() + xlab("")+
            theme(legend.title=element_blank()) + ylab('%')
+        }
+        
       }
     }
   })
@@ -419,8 +430,8 @@ shinyServer(function(input, output, session) {
           
             power_df <- expand.grid(days= seq(1, input$testDaysLeft, 1),
                                     true_uplift= seq(input$minUp[1]/100, input$minUp[2]/100, length.out = 5)) %>%
-              mutate(power = power_with_start_calc(days, input$testDaysRun, input$treat_u, input$cont_u, input$treat_sucess,
-                                                   input$cont_sucess, true_uplift, input$null_hypoth, input$sig, input$tails),
+              mutate(power = power_with_start_calc(days, input$testDaysRun, input$treat_u, input$cont_u, input$treat_success,
+                                                   input$cont_success, true_uplift, input$null_hypoth, input$sig, input$tails),
                                     true_uplift = true_uplift * 100)
         
             power_df$true_uplift <- factor(power_df$true_uplift, levels = rev(levels(factor(power_df$true_uplift))))
@@ -439,18 +450,21 @@ shinyServer(function(input, output, session) {
         if (input$testOver == 2){
           if (!is.null(input$testDaysLeft)){
             if (!is.null(input$datafile)){
-              df <- read.csv(input$datafile$datapath) %>% 
+              df <- read.csv(input$datafile$datapath) 
+              if (length(setdiff(c('treatment_uniques', 'control_uniques', 'treatment_successes', 'control_successes'), colnames(df))) == 0){
+              df<-df%>% 
                 tail(1)
               
               power_df <- expand.grid(days= seq(1, input$testDaysLeft, 1),
                                       true_uplift= seq(input$minUp[1]/100, input$minUp[2]/100, length.out = 5)) %>%
-                mutate(power = power_with_start_calc(days, input$testDaysRun, df$treatment_uniques, df$control_uniques, df$treatment_sucesses,
-                                                     df$control_sucesses, true_uplift, input$null_hypoth, input$sig, input$tails),
+                mutate(power = power_with_start_calc(days, input$testDaysRun, df$treatment_uniques, df$control_uniques, df$treatment_successes,
+                                                     df$control_successes, true_uplift, input$null_hypoth, input$sig, input$tails),
                        true_uplift = true_uplift * 100)
               
               power_df$true_uplift <- factor(power_df$true_uplift, levels = rev(levels(factor(power_df$true_uplift))))
               return(ggplot(power_df, aes(x=days, y=power, group = true_uplift, colour = true_uplift)) +geom_line()+ 
                        ggtitle("Test Prognosis") + theme(plot.title = element_text(hjust = 0.5)))
+              }
               
             }
           }
@@ -460,9 +474,8 @@ shinyServer(function(input, output, session) {
   }) 
   
   output$testPlan <- renderPlot({
-    if (input$select ==2  ){
-      if (!is.null(input$trafficPlan )){
-        if(input$trafficPlan>0){
+    if (input$select ==2){
+      if (!is.null(input$daysPlan)){
         power_df <-   expand.grid(days= seq(1,input$daysPlan, 1),
                               e_prop= input$propsPlan,
                               true_uplift= seq(input$minUpPlan[1]/100, input$minUpPlan[2]/100, length.out = 5)) %>%
@@ -475,8 +488,6 @@ shinyServer(function(input, output, session) {
       
         return( ggplot(power_df, aes(x=days, y=power, group = true_uplift, colour = true_uplift)) +geom_line() + 
                   ggtitle("Test Prognosis") + theme(plot.title = element_text(hjust = 0.5)))
-        }
-        
       }
     }
   })
@@ -498,9 +509,8 @@ shinyServer(function(input, output, session) {
         colnames(power_df)[1] = 'True uplift'
         colnames(power_df)[2] = 'Min days'
         colnames(power_df)[3] = 'Min uniques'
-        if (nrow(power_df)>0){
-          return (power_df)
-        }
+        return (power_df)
+        
       }
     }
   })
