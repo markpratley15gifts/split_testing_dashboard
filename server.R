@@ -474,8 +474,9 @@ shinyServer(function(input, output, session) {
   }) 
   
   output$testPlan <- renderPlot({
-    if (input$select ==2){
-      if (!is.null(input$daysPlan)){
+    if (input$select == 2){
+      if (!is.null(input$daysPlan) & !is.null(input$trafficPlan)){
+        if(input$trafficPlan >0){
         power_df <-   expand.grid(days= seq(1,input$daysPlan, 1),
                               e_prop= input$propsPlan,
                               true_uplift= seq(input$minUpPlan[1]/100, input$minUpPlan[2]/100, length.out = 5)) %>%
@@ -488,6 +489,7 @@ shinyServer(function(input, output, session) {
       
         return( ggplot(power_df, aes(x=days, y=power, group = true_uplift, colour = true_uplift)) +geom_line() + 
                   ggtitle("Test Prognosis") + theme(plot.title = element_text(hjust = 0.5)))
+        }
       }
     }
   })
